@@ -124,5 +124,97 @@ describe("API Validation Tests", () => {
     });
     expect(response.status).toBe(400);
   });
+
+  test("11. Security - Get Code Info rejects request without API Key", async () => {
+    const response = await fetch(`${BASE_URL}/tickets/code/non-existent-code`, {
+      headers: {
+        "Authorization": `Bearer ${jwtToken}`,
+      },
+    });
+    expect(response.status).toBe(401);
+    const data = await response.json();
+    expect(data.error).toBe("API Key requerida");
+  });
+
+  test("12. Security - Get Code Info rejects request with invalid API Key", async () => {
+    const response = await fetch(`${BASE_URL}/tickets/code/non-existent-code`, {
+      headers: {
+        "x-api-key": "invalid-key",
+        "Authorization": `Bearer ${jwtToken}`,
+      },
+    });
+    expect(response.status).toBe(403);
+    const data = await response.json();
+    expect(data.error).toBe("API Key inválida");
+  });
+
+  test("13. Security - Get Code Info rejects request without JWT Token", async () => {
+    const response = await fetch(`${BASE_URL}/tickets/code/non-existent-code`, {
+      headers: {
+        "x-api-key": API_KEY,
+      },
+    });
+    expect(response.status).toBe(401);
+    const data = await response.json();
+    expect(data.error).toBe("Token de acceso requerido");
+  });
+
+  test("14. Security - Get Code Info rejects request with invalid JWT Token", async () => {
+    const response = await fetch(`${BASE_URL}/tickets/code/non-existent-code`, {
+      headers: {
+        "x-api-key": API_KEY,
+        "Authorization": "Bearer invalid-token",
+      },
+    });
+    expect(response.status).toBe(403);
+    const data = await response.json();
+    expect(data.error).toBe("Token inválido o expirado");
+  });
+
+  test("15. Security - Get User Info rejects request without API Key", async () => {
+    const response = await fetch(`${BASE_URL}/tickets/user/1`, {
+      headers: {
+        "Authorization": `Bearer ${jwtToken}`,
+      },
+    });
+    expect(response.status).toBe(401);
+    const data = await response.json();
+    expect(data.error).toBe("API Key requerida");
+  });
+
+  test("16. Security - Get User Info rejects request with invalid API Key", async () => {
+    const response = await fetch(`${BASE_URL}/tickets/user/1`, {
+      headers: {
+        "x-api-key": "invalid-key",
+        "Authorization": `Bearer ${jwtToken}`,
+      },
+    });
+    expect(response.status).toBe(403);
+    const data = await response.json();
+    expect(data.error).toBe("API Key inválida");
+  });
+
+  test("17. Security - Get User Info rejects request without JWT Token", async () => {
+    const response = await fetch(`${BASE_URL}/tickets/user/1`, {
+      headers: {
+        "x-api-key": API_KEY,
+      },
+    });
+    expect(response.status).toBe(401);
+    const data = await response.json();
+    expect(data.error).toBe("Token de acceso requerido");
+  });
+
+  test("18. Security - Get User Info rejects request with invalid JWT Token", async () => {
+    const response = await fetch(`${BASE_URL}/tickets/user/1`, {
+      headers: {
+        "x-api-key": API_KEY,
+        "Authorization": "Bearer invalid-token",
+      },
+    });
+    expect(response.status).toBe(403);
+    const data = await response.json();
+    expect(data.error).toBe("Token inválido o expirado");
+  });
 });
 
