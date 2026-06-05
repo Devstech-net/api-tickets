@@ -10,6 +10,7 @@ export const createTicketSchema = z.object({
   description: z.string().min(5, 'La descripción debe tener al menos 5 caracteres').max(1000),
   priority: ticketPriorityEnum.default('Medium'),
   evidence: z.union([z.string(), z.any()]).optional(), // Can be base64 string or file object
+  codigo: z.string().min(8, 'El código debe tener al menos 8 caracteres')
 });
 
 export const updateTicketStatusSchema = z.object({
@@ -31,7 +32,18 @@ export const queryTicketsSchema = z.object({
   uid: z.string().optional(),
 });
 
+export const getCodeInfoSchema = z.object({
+  code: z.string().min(1, 'El código es requerido')
+});
+
+export const getUserInfoSchema = z.object({
+  id: z.coerce.number().positive('El ID de usuario debe ser un número positivo')
+});
+
 export type CreateTicketInput = z.infer<typeof createTicketSchema>;
 export type UpdateTicketStatusInput = z.infer<typeof updateTicketStatusSchema>;
 export type CreateActivityInput = z.infer<typeof createActivitySchema>;
 export type QueryTicketsInput = z.infer<typeof queryTicketsSchema>;
+export type GetCodeInfoInput = z.infer<typeof getCodeInfoSchema>;
+export type GetUserInfoInput = z.infer<typeof getUserInfoSchema>;
+

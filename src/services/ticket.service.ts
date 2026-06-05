@@ -85,10 +85,11 @@ export const ticketService = {
         .input('title', mssql.NVarChar, data.title)
         .input('description', mssql.NVarChar, data.description)
         .input('priority', mssql.NVarChar, data.priority || 'Medium')
+        .input('codigo', mssql.NVarChar, data.codigo || null)
         .query(`
-          INSERT INTO tbl_S_qualitor_tickets_records (idUser, idCategory, title, description, priority, status)
+          INSERT INTO tbl_S_qualitor_tickets_records (idUser, idCategory, title, description, priority, status, codigo)
           OUTPUT INSERTED.*
-          VALUES (@idUser, @idCategory, @title, @description, @priority, 'Open')
+          VALUES (@idUser, @idCategory, @title, @description, @priority, 'Open', @codigo)
         `);
 
       const ticket = result.recordset[0];
@@ -205,5 +206,42 @@ export const ticketService = {
       .input('ticketId', mssql.Int, ticketId)
       .query('SELECT * FROM tbl_S_qualitor_tickets_attachments WHERE idTicket = @ticketId');
     return result.recordset;
+  },
+
+  getCodeInfo: async (code: string): Promise<any | null> => {
+    const pool = await poolPromise;
+    const result = await pool.request()
+      .input('cod', mssql.NVarChar, code)
+      .query(`
+        SELECT vqc.cod, vqc.point, vqc.register_date, tsqu.fullname, tsqdt.description as documento,
+        tsqu.email, tsqu.address as userAddress, tsqu.phone, tsqu.personalId, tsqu.stationId, tsqs.name as stationName, 
+        tsqst.brandId, tsqst.address, tsqb.name as marca
+        FROM FidelissaCRM.dbo.vw_qualitor_code AS vqc
+        left join FidelissaCRM.dbo.tbl_S_qualitor_user AS tsqu on tsqu.id = vqc.user_id_register
+        left join FidelissaCRM.dbo.tbl_S_qualitor_documentType AS tsqdt on tsqdt.id = tsqu.documentTypeId 
+        left join FidelissaCRM.dbo.tbl_S_qualitor_station AS tsqs on tsqs.id = tsqu.stationId 
+        left join FidelissaCRM.dbo.tbl_S_qualitor_team AS tsqt on tsqt.userId = vqc.user_id_register 
+        left join FidelissaCRM.dbo.tbl_S_qualitor_station AS tsqst on tsqst.id  = tsqu.stationId
+        left join FidelissaCRM.dbo.tbl_S_qualitor_brand AS tsqb on tsqb.id = tsqst.brandId 
+        WHERE cod = @cod
+      `);
+    return result.recordset[0] || null;
+  },
+
+  getUserInfo: async (id: number): Promise<any | null> => {
+    const pool = await poolPromise;
+    const result = await pool.request()
+      .input('id', mssql.Int, id)
+      .query(`
+        select usr.fullname, tsqdt.description as documento, tsqb.name as marca,
+        tsqs.address
+        from FidelissaCRM.dbo.tbl_S_qualitor_user usr
+        left join FidelissaCRM.dbo.tbl_S_qualitor_documentType AS tsqdt on tsqdt.id = usr.documentTypeId 
+        left join FidelissaCRM.dbo.tbl_S_qualitor_station AS tsqs on tsqs.id = usr.stationId  
+        left join FidelissaCRM.dbo.tbl_S_qualitor_brand AS tsqb on tsqb.id = tsqs.brandId 
+        where usr.id = @id
+      `);
+    return result.recordset[0] || null;
   }
 };
+

@@ -171,6 +171,46 @@ Retorna el objeto Ticket actualizado.
 }
 ```
 
+### 7. Obtener Información de Código
+`GET /api/tickets/code/:code`
+
+Obtiene la información detallada de registro asociada a un código de Qualitor (`FidelissaCRM`).
+
+**Respuesta Exitosa (200 OK):**
+```json
+{
+  "cod": "A-LY39EKKZTK",
+  "point": 100,
+  "register_date": "2026-06-04T12:00:00.000Z",
+  "fullname": "Nombre Completo",
+  "documento": "Cédula de Ciudadanía",
+  "email": "correo@ejemplo.com",
+  "userAddress": "Calle 123 #45-67",
+  "phone": "3001234567",
+  "personalId": "1234567890",
+  "stationId": 1,
+  "stationName": "Estación Central",
+  "brandId": 10,
+  "address": "Avenida Siempre Viva 742",
+  "marca": "Simoniz"
+}
+```
+
+### 8. Obtener Información de Usuario
+`GET /api/tickets/user/:id`
+
+Obtiene la información detallada del perfil de un usuario registrado (`FidelissaCRM`).
+
+**Respuesta Exitosa (200 OK):**
+```json
+{
+  "fullname": "Nombre Completo",
+  "documento": "Cédula de Ciudadanía",
+  "marca": "Simoniz",
+  "address": "Calle 123 #45-67"
+}
+```
+
 ---
 
 ## Manejo de Errores

@@ -6,6 +6,8 @@ import {
   updateTicketStatusSchema,
   createActivitySchema,
   queryTicketsSchema,
+  getCodeInfoSchema,
+  getUserInfoSchema,
 } from '../schemas/ticket.schema';
 
 
@@ -105,6 +107,56 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
     res.json({ total: tickets.length, tickets });
   } catch (error) {
     res.status(500).json({ error: 'Error al listar tickets' });
+  }
+});
+
+/**
+ * GET /api/tickets/code/:code
+ * Obtener información de un código
+ */
+router.get('/code/:code', async (req: Request, res: Response): Promise<void> => {
+  const result = getCodeInfoSchema.safeParse({ code: req.params.code });
+
+  if (!result.success) {
+    res.status(400).json({ error: 'Código inválido', details: result.error.format() });
+    return;
+  }
+
+  try {
+    const codeInfo = await ticketService.getCodeInfo(result.data.code);
+    if (!codeInfo) {
+      res.status(404).json({ error: 'Código no encontrado' });
+      return;
+    }
+    res.json(codeInfo);
+  } catch (error: any) {
+    console.error('Error fetching code info:', error);
+    res.status(500).json({ error: 'Error al obtener la información del código', message: error.message });
+  }
+});
+
+/**
+ * GET /api/tickets/user/:id
+ * Obtener información de un usuario
+ */
+router.get('/user/:id', async (req: Request, res: Response): Promise<void> => {
+  const result = getUserInfoSchema.safeParse({ id: req.params.id });
+
+  if (!result.success) {
+    res.status(400).json({ error: 'ID de usuario inválido', details: result.error.format() });
+    return;
+  }
+
+  try {
+    const userInfo = await ticketService.getUserInfo(result.data.id);
+    if (!userInfo) {
+      res.status(404).json({ error: 'Usuario no encontrado' });
+      return;
+    }
+    res.json(userInfo);
+  } catch (error: any) {
+    console.error('Error fetching user info:', error);
+    res.status(500).json({ error: 'Error al obtener la información del usuario', message: error.message });
   }
 });
 

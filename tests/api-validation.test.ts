@@ -60,6 +60,7 @@ describe("API Validation Tests", () => {
       title: "Test Ticket from automation",
       description: "This is a test ticket created by the validation suite.",
       priority: "Medium",
+      codigo: "A-LY39EKKZTK",
     };
 
     const response = await fetch(`${BASE_URL}/tickets`, {
@@ -93,4 +94,35 @@ describe("API Validation Tests", () => {
     const found = data.tickets.find((t: any) => t.title === "Test Ticket from automation");
     expect(found).toBeDefined();
   });
+
+  test("8. Tickets - Get Code Info (404 Non-existent)", async () => {
+    const response = await fetch(`${BASE_URL}/tickets/code/non-existent-code`, {
+      headers: {
+        "x-api-key": API_KEY,
+        "Authorization": `Bearer ${jwtToken}`,
+      },
+    });
+    expect(response.status).toBe(404);
+  });
+
+  test("9. User Info - Get User Info (404 Non-existent)", async () => {
+    const response = await fetch(`${BASE_URL}/tickets/user/9999999`, {
+      headers: {
+        "x-api-key": API_KEY,
+        "Authorization": `Bearer ${jwtToken}`,
+      },
+    });
+    expect(response.status).toBe(404);
+  });
+
+  test("10. User Info - Get User Info (400 Invalid ID)", async () => {
+    const response = await fetch(`${BASE_URL}/tickets/user/invalid-id`, {
+      headers: {
+        "x-api-key": API_KEY,
+        "Authorization": `Bearer ${jwtToken}`,
+      },
+    });
+    expect(response.status).toBe(400);
+  });
 });
+
