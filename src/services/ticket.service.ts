@@ -246,33 +246,49 @@ export const ticketService = {
     const result = await pool.request()
       .input('cod', mssql.NVarChar, code)
       .query(`
-        SELECT vqc.cod, vqc.point, vqc.register_date, tsqu.fullname, tsqdt.description as documento,
-        tsqu.email,tsqu.address, tsqu.phone, tsqu.personalId, tsqu.stationId, tsqs.name as stationName, 
+        SELECT vqc.cod, vqc.point, vqc.register_date, sqc.created_at as fechaCreacionCodigo,
+        tsqu.fullname, tsqdt.description as documento, tsqu.personalId as numeroDocumento,
+        tsqu.email, tsqu.address as userAddress, tsqu.phone, tsqu.personalId, tsqu.stationId, tsqs.name as stationName, 
+        tsqc.nombre as ciudad, tsqdep.name as departamento,
         tsqs.brandId, tsqs.address, tsqb.name as marca
         FROM FidelissaCRM.dbo.vw_qualitor_code AS vqc
-        left join FidelissaCRM.dbo.tbl_S_qualitor_user AS tsqu on tsqu.id = vqc.user_id_register
-        left join FidelissaCRM.dbo.tbl_S_qualitor_documentType AS tsqdt on tsqdt.id = tsqu.documentTypeId 
-        left join FidelissaCRM.dbo.tbl_S_qualitor_station AS tsqs on tsqs.id = tsqu.stationId 
+        left join FidelissaCRM.dbo.tbl_S_qualitor_code AS sqc on sqc.cod = vqc.cod
+        left join FidelissaCRM.dbo.tbl_S_qualitor_user AS tsqu on (tsqu.id = vqc.user_id_register OR tsqu.id_old = vqc.user_id_register)
+        left join FidelissaCRM.dbo.tbl_S_qualitor_documentType AS tsqdt on (tsqdt.id = tsqu.documentTypeId OR tsqdt.id_old = tsqu.documentTypeId)
+        left join FidelissaCRM.dbo.tbl_S_qualitor_station AS tsqs on (tsqs.id = tsqu.stationId OR tsqs.id_old = tsqu.stationId)
+        left join FidelissaCRM.dbo.tbl_S_qualitor_city as tsqc on (tsqc.id_old = tsqs.cityId OR tsqc.id = tsqs.cityId)
+        left join FidelissaCRM.dbo.tbl_S_qualitor_state as tsqdep on (tsqdep.id_old = tsqc.stateId OR tsqdep.id = tsqc.stateId)
         left join FidelissaCRM.dbo.tbl_S_qualitor_team AS tsqt on tsqt.userId = vqc.user_id_register 
-        left join FidelissaCRM.dbo.tbl_S_qualitor_brand AS tsqb on tsqb.id = tsqs.brandId  
-        WHERE cod = @cod
+        left join FidelissaCRM.dbo.tbl_S_qualitor_brand AS tsqb on (tsqb.id = tsqs.brandId OR tsqb.id_old = tsqs.brandId)
+        WHERE vqc.cod = @cod
       `);
     return result.recordset[0] || null;
   },
 
-  getUserInfo: async (id: number): Promise<any | null> => {
+  getUserInfo: async (id: number, code?: string): Promise<any | null> => {
     const pool = await poolPromise;
-    const result = await pool.request()
-      .input('id', mssql.Int, id)
-      .query(`
-        select usr.fullname, tsqdt.description as documento, tsqb.name as marca,
-        tsqs.address
-        from FidelissaCRM.dbo.tbl_S_qualitor_user usr
-        left join FidelissaCRM.dbo.tbl_S_qualitor_documentType AS tsqdt on tsqdt.id = usr.documentTypeId 
-        left join FidelissaCRM.dbo.tbl_S_qualitor_station AS tsqs on tsqs.id = usr.stationId  
-        left join FidelissaCRM.dbo.tbl_S_qualitor_brand AS tsqb on tsqb.id = tsqs.brandId 
-        where usr.id_old = @id
-      `);
+    const request = pool.request().input('id', mssql.Int, id);
+    let codeJoin = '';
+    let codeSelect = 'NULL as fechaCreacionCodigo';
+    if (code) {
+      request.input('code', mssql.NVarChar, code);
+      codeJoin = 'left join FidelissaCRM.dbo.tbl_S_qualitor_code AS sqc on sqc.cod = @code';
+      codeSelect = 'sqc.created_at as fechaCreacionCodigo';
+    }
+
+    const result = await request.query(`
+      select usr.fullname, tsqdt.description as documento, usr.personalId as numeroDocumento, usr.personalId,
+      tsqc.nombre as ciudad, tsqdep.name as departamento, tsqs.name as stationName, tsqb.name as marca,
+      tsqs.address, ${codeSelect}
+      from FidelissaCRM.dbo.tbl_S_qualitor_user usr
+      left join FidelissaCRM.dbo.tbl_S_qualitor_documentType AS tsqdt on (tsqdt.id = usr.documentTypeId OR tsqdt.id_old = usr.documentTypeId)
+      left join FidelissaCRM.dbo.tbl_S_qualitor_station AS tsqs on (tsqs.id = usr.stationId OR tsqs.id_old = usr.stationId)
+      left join FidelissaCRM.dbo.tbl_S_qualitor_city as tsqc on (tsqc.id_old = tsqs.cityId OR tsqc.id = tsqs.cityId)
+      left join FidelissaCRM.dbo.tbl_S_qualitor_state as tsqdep on (tsqdep.id_old = tsqc.stateId OR tsqdep.id = tsqc.stateId)
+      left join FidelissaCRM.dbo.tbl_S_qualitor_brand AS tsqb on (tsqb.id = tsqs.brandId OR tsqb.id_old = tsqs.brandId)
+      ${codeJoin}
+      where usr.id_old = @id OR usr.id = @id
+    `);
     return result.recordset[0] || null;
   }
 };

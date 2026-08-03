@@ -149,7 +149,8 @@ router.get('/user/:id', async (req: Request, res: Response): Promise<void> => {
   }
 
   try {
-    const userInfo = await ticketService.getUserInfo(result.data.id);
+    const code = req.query.code ? String(req.query.code) : undefined;
+    const userInfo = await ticketService.getUserInfo(result.data.id, code);
     if (!userInfo) {
       res.status(404).json({ error: 'Usuario no encontrado' });
       return;
