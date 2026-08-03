@@ -74,18 +74,45 @@ export const ticketService = {
 
   createTicket: async (data: any): Promise<Ticket> => {
     const pool = await poolPromise;
+
+    // Verificar si la categoría elegida es "Códigos duplicados"
+    const catResult = await pool.request()
+      .input('idCategory', mssql.Int, data.idCategory)
+      .query('SELECT name FROM tbl_S_qualitor_tickets_categories WHERE id = @idCategory');
+
+    const category = catResult.recordset[0];
+    const categoryName = category ? category.name : '';
+    const isCodigosDuplicados = categoryName
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim() === 'codigos duplicados';
+
+    if (isCodigosDuplicados) {
+      if (!data.codigo || !String(data.codigo).trim()) {
+        const err: any = new Error('El código es obligatorio para la categoría Códigos duplicados');
+        err.statusCode = 400;
+        throw err;
+      }
+    }
+
     const transaction = new mssql.Transaction(pool);
 
     try {
       await transaction.begin();
 
+      const title = data.title ? String(data.title).substring(0, 100) : '';
+      const description = data.description ? String(data.description).substring(0, 1000) : '';
+      const priority = data.priority ? String(data.priority).substring(0, 50) : 'Medium';
+      const codigo = (data.codigo && String(data.codigo).trim()) ? String(data.codigo).trim().substring(0, 100) : null;
+
       const result = await transaction.request()
         .input('idUser', mssql.Int, data.idUser)
         .input('idCategory', mssql.Int, data.idCategory)
-        .input('title', mssql.NVarChar, data.title)
-        .input('description', mssql.NVarChar, data.description)
-        .input('priority', mssql.NVarChar, data.priority || 'Medium')
-        .input('codigo', mssql.NVarChar, data.codigo || null)
+        .input('title', mssql.NVarChar(100), title)
+        .input('description', mssql.NVarChar(mssql.MAX), description)
+        .input('priority', mssql.NVarChar(50), priority)
+        .input('codigo', mssql.NVarChar(100), codigo)
         .query(`
           INSERT INTO tbl_S_qualitor_tickets_records (idUser, idCategory, title, description, priority, status, codigo)
           OUTPUT INSERTED.*
@@ -123,13 +150,18 @@ export const ticketService = {
       // Construir la URL pública (asumiendo que env.URL_TICKETS es la base)
       const url = `${env.URL_TICKETS}${ticketId}/${fileName}`;
 
+      const nameTruncated = file.originalname ? String(file.originalname).substring(0, 255) : 'file';
+      const typeTruncated = file.mimetype ? String(file.mimetype).substring(0, 50) : 'image/jpeg';
+      const urlTruncated = url ? String(url).substring(0, 500) : '';
+      const sizeTruncated = file.size ? String(file.size).substring(0, 50) : '0';
+
       const pool = await poolPromise;
       await pool.request()
         .input('idTicket', mssql.Int, ticketId)
-        .input('name', mssql.NVarChar, file.originalname)
-        .input('type', mssql.NVarChar, file.mimetype)
-        .input('url', mssql.NVarChar, url)
-        .input('size', mssql.NVarChar, file.size.toString())
+        .input('name', mssql.NVarChar(255), nameTruncated)
+        .input('type', mssql.NVarChar(50), typeTruncated)
+        .input('url', mssql.NVarChar(500), urlTruncated)
+        .input('size', mssql.NVarChar(50), sizeTruncated)
         .query(`
           INSERT INTO tbl_S_qualitor_tickets_attachments (idTicket, name, type, url, size)
           VALUES (@idTicket, @name, @type, @url, @size)
@@ -152,18 +184,18 @@ export const ticketService = {
 
       const updateResult = await transaction.request()
         .input('id', mssql.Int, id)
-        .input('status', mssql.NVarChar, status)
+        .input('status', mssql.NVarChar(50), status ? String(status).substring(0, 50) : 'Open')
         .query('UPDATE tbl_S_qualitor_tickets_records SET status = @status, updated_at = GETDATE() OUTPUT INSERTED.* WHERE id = @id');
 
       const ticket = updateResult.recordset[0];
       if (ticket) {
         await transaction.request()
           .input('idTicket', mssql.Int, id)
-          .input('type', mssql.NVarChar, 'status_change')
-          .input('author', mssql.NVarChar, author)
-          .input('authorRole', mssql.NVarChar, authorRole)
-          .input('content', mssql.NVarChar, `Estado cambiado a ${status}`)
-          .input('statusBadge', mssql.NVarChar, status)
+          .input('type', mssql.NVarChar(50), 'status_change')
+          .input('author', mssql.NVarChar(150), author ? String(author).substring(0, 150) : 'System')
+          .input('authorRole', mssql.NVarChar(50), authorRole ? String(authorRole).substring(0, 50) : 'Admin')
+          .input('content', mssql.NVarChar(mssql.MAX), `Estado cambiado a ${status}`)
+          .input('statusBadge', mssql.NVarChar(50), status ? String(status).substring(0, 50) : null)
           .query('INSERT INTO tbl_S_qualitor_tickets_activities (idTicket, type, author, authorRole, content, statusBadge) VALUES (@idTicket, @type, @author, @authorRole, @content, @statusBadge)');
       }
 
@@ -179,11 +211,11 @@ export const ticketService = {
     const pool = await poolPromise;
     const result = await pool.request()
       .input('idTicket', mssql.Int, data.idTicket)
-      .input('type', mssql.NVarChar, data.type || 'message')
-      .input('author', mssql.NVarChar, data.author)
-      .input('authorRole', mssql.NVarChar, data.authorRole)
-      .input('content', mssql.NVarChar, data.content)
-      .input('statusBadge', mssql.NVarChar, data.statusBadge)
+      .input('type', mssql.NVarChar(50), data.type ? String(data.type).substring(0, 50) : 'message')
+      .input('author', mssql.NVarChar(150), data.author ? String(data.author).substring(0, 150) : 'User')
+      .input('authorRole', mssql.NVarChar(50), data.authorRole ? String(data.authorRole).substring(0, 50) : 'User')
+      .input('content', mssql.NVarChar(mssql.MAX), data.content ? String(data.content) : '')
+      .input('statusBadge', mssql.NVarChar(50), data.statusBadge ? String(data.statusBadge).substring(0, 50) : null)
       .query(`
         INSERT INTO tbl_S_qualitor_tickets_activities (idTicket, type, author, authorRole, content, statusBadge)
         OUTPUT INSERTED.*

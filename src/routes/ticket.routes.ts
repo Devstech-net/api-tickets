@@ -64,7 +64,8 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
     res.status(201).json(ticket);
   } catch (error: any) {
     console.error('Error creating ticket:', error);
-    res.status(500).json({ error: 'Error al crear el ticket', message: error.message });
+    const statusCode = error.statusCode || 500;
+    res.status(statusCode).json({ error: error.message || 'Error al crear el ticket', message: error.message });
   }
 });
 

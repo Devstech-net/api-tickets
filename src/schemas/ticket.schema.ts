@@ -10,7 +10,7 @@ export const createTicketSchema = z.object({
   description: z.string().min(5, 'La descripción debe tener al menos 5 caracteres').max(1000),
   priority: ticketPriorityEnum.default('Medium'),
   evidence: z.union([z.string(), z.any()]).optional(), // Can be base64 string or file object
-  codigo: z.string().min(8, 'El código debe tener al menos 8 caracteres')
+  codigo: z.string().optional().nullable().or(z.literal(''))
 });
 
 export const updateTicketStatusSchema = z.object({
