@@ -1,5 +1,6 @@
 import mssql from 'mssql';
 import SftpClient from 'ssh2-sftp-client';
+import 'multer';
 
 import { env } from '../config/env';
 import { Ticket, TicketCategory, TicketActivity, TicketStatus } from '../types';
