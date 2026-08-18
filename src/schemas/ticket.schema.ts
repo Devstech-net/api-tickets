@@ -40,10 +40,19 @@ export const getUserInfoSchema = z.object({
   id: z.coerce.number().positive('El ID de usuario debe ser un número positivo')
 });
 
+export const exportTicketsQuerySchema = z.object({
+  status: ticketStatusEnum.optional(),
+  idCategory: z.coerce.number().positive().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+});
+
 export type CreateTicketInput = z.infer<typeof createTicketSchema>;
 export type UpdateTicketStatusInput = z.infer<typeof updateTicketStatusSchema>;
 export type CreateActivityInput = z.infer<typeof createActivitySchema>;
 export type QueryTicketsInput = z.infer<typeof queryTicketsSchema>;
+export type ExportTicketsQueryInput = z.infer<typeof exportTicketsQuerySchema>;
 export type GetCodeInfoInput = z.infer<typeof getCodeInfoSchema>;
 export type GetUserInfoInput = z.infer<typeof getUserInfoSchema>;
+
 

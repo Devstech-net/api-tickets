@@ -43,6 +43,34 @@ export interface TicketActivity {
   created_at: string;
 }
 
+export interface TicketExportRow {
+  id: number;
+  categoria: string | null;
+  descripcion: string | null;
+  n_pqrs: number | string | null;
+  fecha_creacion: string | Date | null;
+  estado: string | null;
+  usuario_gestiona: string | null;
+  doc_reporta: string | null;
+  user_reporta: string | null;
+  ciudad_reporta: string | null;
+  depto_reporta: string | null;
+  marca_eds_reporta: string | null;
+  nombre_eds_reporta: string | null;
+  direccion_eds_reporta: string | null;
+  fecha_creacion_codigo: string | Date | null;
+  codigo: string | null;
+  valor_codigo: number | null;
+  fecha_registro_codigo: string | Date | null;
+  user_registro: string | null;
+  doc_registro: string | null;
+  ciudad_registro: string | null;
+  depto_registro: string | null;
+  marca_eds_registro: string | null;
+  nombre_eds_registro: string | null;
+  direccion_eds_registro: string | null;
+}
+
 export interface TicketStore {
   tickets: Ticket[];
   activities: TicketActivity[];
@@ -55,3 +83,4 @@ export interface TicketStore {
   addActivity: (activity: TicketActivity) => void;
   getActivitiesByTicketId: (ticketId: number) => TicketActivity[];
 }
+

@@ -290,6 +290,160 @@ export const ticketService = {
       where usr.id_old = @id OR usr.id = @id
     `);
     return result.recordset[0] || null;
+  },
+
+  getTicketsExportData: async (filters?: {
+    status?: string;
+    idCategory?: number;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<any[]> => {
+    const pool = await poolPromise;
+    const request = pool.request();
+
+    let whereClause = 'WHERE 1=1';
+
+    if (filters?.status) {
+      whereClause += ' AND t.status = @status';
+      request.input('status', mssql.NVarChar(50), filters.status);
+    }
+    if (filters?.idCategory) {
+      whereClause += ' AND t.idCategory = @idCategory';
+      request.input('idCategory', mssql.Int, filters.idCategory);
+    }
+    if (filters?.startDate) {
+      whereClause += ' AND t.created_at >= @startDate';
+      request.input('startDate', mssql.DateTime, new Date(filters.startDate));
+    }
+    if (filters?.endDate) {
+      whereClause += ' AND t.created_at <= @endDate';
+      request.input('endDate', mssql.DateTime, new Date(filters.endDate));
+    }
+
+    const query = `
+      SELECT 
+        t.id,
+        c.name as categoria,
+        t.description as descripcion,
+        t.id as n_pqrs,
+        t.created_at as fecha_creacion,
+        t.status as estado,
+        act.author as usuario_gestiona,
+        
+        -- Datos de quien reporta (creador del ticket)
+        rep_u.personalId as doc_reporta,
+        rep_u.fullname as user_reporta,
+        rep_city.nombre as ciudad_reporta,
+        rep_state.name as depto_reporta,
+        rep_brand.name as marca_eds_reporta,
+        rep_station.name as nombre_eds_reporta,
+        rep_station.address as direccion_eds_reporta,
+        
+        -- Datos del código
+        COALESCE(sqc.created_at, vqc.created_at) as fecha_creacion_codigo,
+        t.codigo as codigo,
+        vqc.point as valor_codigo,
+        vqc.register_date as fecha_registro_codigo,
+        
+        -- Datos de quien registró el código
+        reg_u.fullname as user_registro,
+        reg_u.personalId as doc_registro,
+        reg_city.nombre as ciudad_registro,
+        reg_state.name as depto_registro,
+        reg_brand.name as marca_eds_registro,
+        reg_station.name as nombre_eds_registro,
+        reg_station.address as direccion_eds_registro
+        
+      FROM tbl_S_qualitor_tickets_records t
+      LEFT JOIN tbl_S_qualitor_tickets_categories c ON c.id = t.idCategory
+      
+      OUTER APPLY (
+        SELECT TOP 1 author 
+        FROM tbl_S_qualitor_tickets_activities a 
+        WHERE a.idTicket = t.id AND a.authorRole IN ('Admin', 'System')
+        ORDER BY a.created_at DESC
+      ) act
+      
+      OUTER APPLY (
+        SELECT TOP 1 *
+        FROM FidelissaCRM.dbo.tbl_S_qualitor_user u
+        WHERE u.id = t.idUser OR u.id_old = t.idUser
+        ORDER BY (CASE WHEN u.id = t.idUser THEN 1 ELSE 2 END)
+      ) rep_u
+      
+      OUTER APPLY (
+        SELECT TOP 1 * FROM FidelissaCRM.dbo.tbl_S_qualitor_station s
+        WHERE s.id_old = rep_u.stationId OR s.id = rep_u.stationId
+        ORDER BY (CASE WHEN s.id_old = rep_u.stationId THEN 1 ELSE 2 END)
+      ) rep_station
+      
+      OUTER APPLY (
+        SELECT TOP 1 * FROM FidelissaCRM.dbo.tbl_S_qualitor_city ci
+        WHERE ci.id_old = rep_station.cityId OR ci.id = rep_station.cityId
+        ORDER BY (CASE WHEN ci.id_old = rep_station.cityId THEN 1 ELSE 2 END)
+      ) rep_city
+      
+      OUTER APPLY (
+        SELECT TOP 1 * FROM FidelissaCRM.dbo.tbl_S_qualitor_state st
+        WHERE st.id_old = rep_city.stateId OR st.id = rep_city.stateId
+        ORDER BY (CASE WHEN st.id_old = rep_city.stateId THEN 1 ELSE 2 END)
+      ) rep_state
+      
+      OUTER APPLY (
+        SELECT TOP 1 * FROM FidelissaCRM.dbo.tbl_S_qualitor_brand b
+        WHERE b.id_old = rep_station.brandId OR b.id = rep_station.brandId
+        ORDER BY (CASE WHEN b.id_old = rep_station.brandId THEN 1 ELSE 2 END)
+      ) rep_brand
+      
+      OUTER APPLY (
+        SELECT TOP 1 q.created_at
+        FROM FidelissaCRM.dbo.tbl_S_qualitor_code q
+        WHERE q.cod = t.codigo
+      ) sqc
+      
+      OUTER APPLY (
+        SELECT TOP 1 v.point, v.created_at, v.register_date, v.user_id_register
+        FROM FidelissaCRM.dbo.vw_qualitor_code v
+        WHERE v.cod = t.codigo
+      ) vqc
+      
+      OUTER APPLY (
+        SELECT TOP 1 * FROM FidelissaCRM.dbo.tbl_S_qualitor_user u
+        WHERE u.id_old = vqc.user_id_register OR u.id = vqc.user_id_register
+        ORDER BY (CASE WHEN u.id_old = vqc.user_id_register THEN 1 ELSE 2 END)
+      ) reg_u
+      
+      OUTER APPLY (
+        SELECT TOP 1 * FROM FidelissaCRM.dbo.tbl_S_qualitor_station s
+        WHERE s.id_old = reg_u.stationId OR s.id = reg_u.stationId
+        ORDER BY (CASE WHEN s.id_old = reg_u.stationId THEN 1 ELSE 2 END)
+      ) reg_station
+      
+      OUTER APPLY (
+        SELECT TOP 1 * FROM FidelissaCRM.dbo.tbl_S_qualitor_city ci
+        WHERE ci.id_old = reg_station.cityId OR ci.id = reg_station.cityId
+        ORDER BY (CASE WHEN ci.id_old = reg_station.cityId THEN 1 ELSE 2 END)
+      ) reg_city
+      
+      OUTER APPLY (
+        SELECT TOP 1 * FROM FidelissaCRM.dbo.tbl_S_qualitor_state st
+        WHERE st.id_old = reg_city.stateId OR st.id = reg_city.stateId
+        ORDER BY (CASE WHEN st.id_old = reg_city.stateId THEN 1 ELSE 2 END)
+      ) reg_state
+      
+      OUTER APPLY (
+        SELECT TOP 1 * FROM FidelissaCRM.dbo.tbl_S_qualitor_brand b
+        WHERE b.id_old = reg_station.brandId OR b.id = reg_station.brandId
+        ORDER BY (CASE WHEN b.id_old = reg_station.brandId THEN 1 ELSE 2 END)
+      ) reg_brand
+      
+      ${whereClause}
+      ORDER BY t.id DESC
+    `;
+
+    const result = await request.query(query);
+    return result.recordset;
   }
 };
+
 

@@ -6,9 +6,11 @@ import {
   updateTicketStatusSchema,
   createActivitySchema,
   queryTicketsSchema,
+  exportTicketsQuerySchema,
   getCodeInfoSchema,
   getUserInfoSchema,
 } from '../schemas/ticket.schema';
+
 
 
 
@@ -163,9 +165,34 @@ router.get('/user/:id', async (req: Request, res: Response): Promise<void> => {
 });
 
 /**
+ * GET /api/tickets/export
+ * Obtener listado de tickets con la estructura del layout de PQRs para exportación / descarga Excel
+ */
+router.get('/export', async (req: Request, res: Response): Promise<void> => {
+  const query = exportTicketsQuerySchema.safeParse(req.query);
+
+  if (!query.success) {
+    res.status(400).json({ error: 'Parámetros de consulta inválidos', details: query.error.format() });
+    return;
+  }
+
+  try {
+    const data = await ticketService.getTicketsExportData(query.data);
+    res.json({
+      total: data.length,
+      data
+    });
+  } catch (error: any) {
+    console.error('Error al exportar tickets:', error);
+    res.status(500).json({ error: 'Error al exportar tickets', message: error.message });
+  }
+});
+
+/**
  * GET /api/tickets/:id
  * Obtener detalle de un ticket
  */
+
 router.get('/:id', async (req: Request, res: Response): Promise<void> => {
   const idStr = paramAsString(req.params.id);
 
