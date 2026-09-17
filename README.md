@@ -211,6 +211,67 @@ Obtiene la información detallada del perfil de un usuario registrado (`Fideliss
 }
 ```
 
+### 9. Registrar Evidencia (Adjunto)
+`POST /api/tickets/:id/attachments`
+
+Permite subir una imagen de evidencia para un ticket existente a través de `multipart/form-data` con el campo `file`. El archivo es transferido vía SFTP al servidor de almacenamiento.
+
+**Respuesta Exitosa (201 Created):**
+```json
+{
+  "url": "https://midominio.com/uploads/tickets/1/1771191000000-evidencia.png",
+  "name": "evidencia.png"
+}
+```
+
+### 10. Exportar Tickets (Layout Excel PQRs)
+`GET /api/tickets/export`
+
+Retorna la lista completa de tickets estructurada según las 25 columnas del layout de PQRs (`layoutPQRs.xlsx`) para la generación y descarga de archivos Excel en la interfaz de usuario.
+
+**Parámetros query (opcionales):**
+- `status`: Filtrar por estado (`Open`, `In Progress`, `Resolved`, `Closed`).
+- `idCategory`: Filtrar por ID de categoría (ej: `1` para *Códigos duplicados*).
+- `startDate`: Fecha inicial de creación (ISO string o formato `YYYY-MM-DD`).
+- `endDate`: Fecha final de creación (ISO string o formato `YYYY-MM-DD`).
+
+**Respuesta Exitosa (200 OK):**
+```json
+{
+  "total": 1,
+  "data": [
+    {
+      "id": 50,
+      "categoria": "Codigos duplicados",
+      "descripcion": "Detalle del problema...",
+      "n_pqrs": 50,
+      "fecha_creacion": "2026-08-14T17:00:15.180Z",
+      "estado": "Open",
+      "usuario_gestiona": null,
+      "doc_reporta": "1110458997",
+      "user_reporta": "Cindy Galvis",
+      "ciudad_reporta": "Facatativa",
+      "depto_reporta": "Cundinamarca",
+      "marca_eds_reporta": "TERPEL",
+      "nombre_eds_reporta": "EDS OYCAR SAS",
+      "direccion_eds_reporta": "CARRERA 2 No. 8-192",
+      "fecha_creacion_codigo": "2025-09-08T21:35:49.233Z",
+      "codigo": "LIG-9A11710",
+      "valor_codigo": 1300,
+      "fecha_registro_codigo": "2026-02-13T00:00:00.000Z",
+      "user_registro": "Sirly Estrada",
+      "doc_registro": "1082978782",
+      "ciudad_registro": "SANTA MARTA",
+      "depto_registro": "MAGDALENA",
+      "marca_eds_registro": "TERPEL",
+      "nombre_eds_registro": "ESTACION DE SERVICIO TERPEL GASXY TAYRONA",
+      "direccion_eds_registro": "CARRERA 14 No. 27 ESQUINA"
+    }
+  ]
+}
+```
+
+
 ---
 
 ## Manejo de Errores

@@ -13,7 +13,7 @@ export const ticketService = {
     return result.recordset;
   },
 
-  getTickets: async (status?: string, uid?: string): Promise<Ticket[]> => {
+  getTickets: async (status?: string, uid?: string, idUser?: number): Promise<Ticket[]> => {
     const pool = await poolPromise;
     let query = 'SELECT * FROM tbl_S_qualitor_tickets_records WHERE 1=1';
     const request = pool.request();
@@ -25,6 +25,10 @@ export const ticketService = {
     if (uid) {
       query += ' AND uid LIKE @uid';
       request.input('uid', mssql.NVarChar, `%${uid}%`);
+    }
+    if (idUser) {
+      query += ' AND idUser = @idUser';
+      request.input('idUser', mssql.Int, idUser);
     }
 
     query += ' ORDER BY created_at DESC';

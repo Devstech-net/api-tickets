@@ -106,7 +106,7 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
   }
 
   try {
-    const tickets = await ticketService.getTickets(query.data.status, query.data.uid);
+    const tickets = await ticketService.getTickets(query.data.status, query.data.uid, query.data.idUser);
     res.json({ total: tickets.length, tickets });
   } catch (error) {
     res.status(500).json({ error: 'Error al listar tickets' });

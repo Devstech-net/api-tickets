@@ -43,11 +43,15 @@ app.listen(env.PORT, () => {
   console.log(`📋 Endpoints disponibles:`);
   console.log(`   POST   /api/auth/token`);
   console.log(`   POST   /api/tickets`);
+  console.log(`   POST   /api/tickets/:id/attachments`);
   console.log(`   GET    /api/tickets`);
+  console.log(`   GET    /api/tickets/export`);
+  console.log(`   GET    /api/tickets/code/:code`);
+  console.log(`   GET    /api/tickets/user/:id`);
   console.log(`   GET    /api/tickets/:id`);
   console.log(`   PATCH  /api/tickets/:id`);
   console.log(`   POST   /api/tickets/:id/comments`);
-  console.log(`   GET    /api/tickets/:id/comments`);
 });
+
 
 export default app;

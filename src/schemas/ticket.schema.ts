@@ -30,6 +30,7 @@ export const createActivitySchema = z.object({
 export const queryTicketsSchema = z.object({
   status: ticketStatusEnum.optional(),
   uid: z.string().optional(),
+  idUser: z.coerce.number().positive().optional(),
 });
 
 export const getCodeInfoSchema = z.object({
