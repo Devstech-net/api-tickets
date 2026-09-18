@@ -13,10 +13,12 @@ export interface Ticket {
   uid: string; // Used for public searching/filtering
   idUser: number;
   idCategory: number;
+  categoryName?: string;
   title: string;
   description: string;
   priority: TicketPriority;
   status: TicketStatus;
+  codigo?: string | null;
   created_at: string;
   updated_at?: string;
   attachments?: TicketAttachment[];
