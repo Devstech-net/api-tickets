@@ -13,7 +13,31 @@ export const ticketService = {
     return result.recordset;
   },
 
-  getTickets: async (status?: string, uid?: string, idUser?: number): Promise<Ticket[]> => {
+  resolveEquivalentUserIds: async (userInput: number | string): Promise<number[]> => {
+    const pool = await poolPromise;
+    const num = Number(userInput);
+    const isNum = !isNaN(num) && num > 0;
+    const str = String(userInput).trim();
+
+    const req = pool.request();
+    req.input('strVal', mssql.NVarChar(50), str);
+    let q = 'SELECT id, id_old, personalId FROM FidelissaCRM.dbo.tbl_S_qualitor_user WHERE personalId = @strVal';
+    if (isNum) {
+      req.input('numVal', mssql.Int, num);
+      q += ' OR id = @numVal OR id_old = @numVal';
+    }
+
+    const users = (await req.query(q)).recordset;
+    const idSet = new Set<number>();
+    if (isNum) idSet.add(num);
+    for (const u of users) {
+      if (u.id) idSet.add(Number(u.id));
+      if (u.id_old) idSet.add(Number(u.id_old));
+    }
+    return Array.from(idSet);
+  },
+
+  getTickets: async (status?: string, uid?: string, idUser?: number | string): Promise<Ticket[]> => {
     const pool = await poolPromise;
     let query = 'SELECT * FROM tbl_S_qualitor_tickets_records WHERE 1=1';
     const request = pool.request();
@@ -26,9 +50,16 @@ export const ticketService = {
       query += ' AND uid LIKE @uid';
       request.input('uid', mssql.NVarChar, `%${uid}%`);
     }
-    if (idUser) {
-      query += ' AND idUser = @idUser';
-      request.input('idUser', mssql.Int, idUser);
+    if (idUser !== undefined && idUser !== null && String(idUser).trim() !== '') {
+      const equivalentIds = await ticketService.resolveEquivalentUserIds(idUser);
+      if (equivalentIds.length > 0) {
+        const paramNames = equivalentIds.map((id, index) => {
+          const paramName = `userEquivalentId_${index}`;
+          request.input(paramName, mssql.Int, id);
+          return `@${paramName}`;
+        });
+        query += ` AND idUser IN (${paramNames.join(', ')})`;
+      }
     }
 
     query += ' ORDER BY created_at DESC';
@@ -269,9 +300,20 @@ export const ticketService = {
     return result.recordset[0] || null;
   },
 
-  getUserInfo: async (id: number, code?: string): Promise<any | null> => {
+  getUserInfo: async (id: number | string, code?: string): Promise<any | null> => {
     const pool = await poolPromise;
-    const request = pool.request().input('id', mssql.Int, id);
+    const request = pool.request();
+    const num = Number(id);
+    const isNum = !isNaN(num) && num > 0;
+    const str = String(id).trim();
+
+    request.input('str', mssql.NVarChar(50), str);
+    let userCondition = 'usr.personalId = @str';
+    if (isNum) {
+      request.input('id', mssql.Int, num);
+      userCondition += ' OR usr.id_old = @id OR usr.id = @id';
+    }
+
     let codeJoin = '';
     let codeSelect = 'NULL as fechaCreacionCodigo';
     if (code) {
@@ -281,7 +323,7 @@ export const ticketService = {
     }
 
     const result = await request.query(`
-      select usr.fullname, tsqdt.description as documento, usr.personalId as numeroDocumento, usr.personalId,
+      select TOP 1 usr.id, usr.id_old, usr.fullname, tsqdt.description as documento, usr.personalId as numeroDocumento, usr.personalId,
       tsqc.nombre as ciudad, tsqdep.name as departamento, tsqs.name as stationName, tsqb.name as marca,
       tsqs.address, ${codeSelect}
       from FidelissaCRM.dbo.tbl_S_qualitor_user usr
@@ -291,7 +333,8 @@ export const ticketService = {
       left join FidelissaCRM.dbo.tbl_S_qualitor_state as tsqdep on (tsqdep.id_old = tsqc.stateId OR tsqdep.id = tsqc.stateId)
       left join FidelissaCRM.dbo.tbl_S_qualitor_brand AS tsqb on (tsqb.id = tsqs.brandId OR tsqb.id_old = tsqs.brandId)
       ${codeJoin}
-      where usr.id_old = @id OR usr.id = @id
+      where ${userCondition}
+      order by (case when usr.personalId = @str then 1 when ${isNum ? 'usr.id_old = @id' : '1=0'} then 2 else 3 end)
     `);
     return result.recordset[0] || null;
   },

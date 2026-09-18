@@ -30,7 +30,7 @@ export const createActivitySchema = z.object({
 export const queryTicketsSchema = z.object({
   status: ticketStatusEnum.optional(),
   uid: z.string().optional(),
-  idUser: z.coerce.number().positive().optional(),
+  idUser: z.union([z.coerce.number().positive(), z.string().min(1)]).optional(),
 });
 
 export const getCodeInfoSchema = z.object({
@@ -38,7 +38,7 @@ export const getCodeInfoSchema = z.object({
 });
 
 export const getUserInfoSchema = z.object({
-  id: z.coerce.number().positive('El ID de usuario debe ser un número positivo')
+  id: z.union([z.coerce.number().positive(), z.string().min(1)])
 });
 
 export const exportTicketsQuerySchema = z.object({
