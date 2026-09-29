@@ -147,6 +147,31 @@ export const ticketService = {
       }
     }
 
+    if (data.codigo && String(data.codigo).trim()) {
+      const codigoTrimmed = String(data.codigo).trim();
+      const equivalentIds = await ticketService.resolveEquivalentUserIds(data.idUser);
+      if (equivalentIds.length > 0) {
+        const checkReq = pool.request();
+        checkReq.input('dupCodigo', mssql.NVarChar(100), codigoTrimmed);
+        const paramNames = equivalentIds.map((id, index) => {
+          const paramName = `checkUserEqId_${index}`;
+          checkReq.input(paramName, mssql.Int, id);
+          return `@${paramName}`;
+        });
+        const dupCheckResult = await checkReq.query(`
+          SELECT TOP 1 id FROM tbl_S_qualitor_tickets_records
+          WHERE idUser IN (${paramNames.join(', ')})
+            AND LOWER(LTRIM(RTRIM(codigo))) = LOWER(LTRIM(RTRIM(@dupCodigo)))
+        `);
+
+        if (dupCheckResult.recordset.length > 0) {
+          const err: any = new Error('el codigo que estas registrando, ya fué registrado anteriormente!');
+          err.statusCode = 400;
+          throw err;
+        }
+      }
+    }
+
     const transaction = new mssql.Transaction(pool);
 
     try {
@@ -430,6 +455,7 @@ export const ticketService = {
     }
 
     const query = `
+      SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
       SELECT 
         t.id,
         c.name as categoria,
@@ -440,13 +466,13 @@ export const ticketService = {
         act.author as usuario_gestiona,
         
         -- Datos de quien reporta (creador del ticket)
-        rep_u.personalId as doc_reporta,
-        rep_u.fullname as user_reporta,
-        rep_city.nombre as ciudad_reporta,
-        rep_state.name as depto_reporta,
-        rep_brand.name as marca_eds_reporta,
-        rep_station.name as nombre_eds_reporta,
-        rep_station.address as direccion_eds_reporta,
+        COALESCE(rep_u_id.personalId, rep_u_old.personalId) as doc_reporta,
+        COALESCE(rep_u_id.fullname, rep_u_old.fullname) as user_reporta,
+        COALESCE(rep_ci_old.nombre, rep_ci_id.nombre) as ciudad_reporta,
+        COALESCE(rep_st_old.name, rep_st_id.name) as depto_reporta,
+        COALESCE(rep_b_old.name, rep_b_id.name) as marca_eds_reporta,
+        COALESCE(rep_s_old.name, rep_s_id.name) as nombre_eds_reporta,
+        COALESCE(rep_s_old.address, rep_s_id.address) as direccion_eds_reporta,
         
         -- Datos del código
         COALESCE(sqc.created_at, vqc.created_at) as fecha_creacion_codigo,
@@ -455,97 +481,69 @@ export const ticketService = {
         vqc.register_date as fecha_registro_codigo,
         
         -- Datos de quien registró el código
-        reg_u.fullname as user_registro,
-        reg_u.personalId as doc_registro,
-        reg_city.nombre as ciudad_registro,
-        reg_state.name as depto_registro,
-        reg_brand.name as marca_eds_registro,
-        reg_station.name as nombre_eds_registro,
-        reg_station.address as direccion_eds_registro
+        COALESCE(reg_u_old.fullname, reg_u_id.fullname) as user_registro,
+        COALESCE(reg_u_old.personalId, reg_u_id.personalId) as doc_registro,
+        COALESCE(reg_ci_old.nombre, reg_ci_id.nombre) as ciudad_registro,
+        COALESCE(reg_st_old.name, reg_st_id.name) as depto_registro,
+        COALESCE(reg_b_old.name, reg_b_id.name) as marca_eds_registro,
+        COALESCE(reg_s_old.name, reg_s_id.name) as nombre_eds_registro,
+        COALESCE(reg_s_old.address, reg_s_id.address) as direccion_eds_registro
         
-      FROM tbl_S_qualitor_tickets_records t
-      LEFT JOIN tbl_S_qualitor_tickets_categories c ON c.id = t.idCategory
+      FROM tbl_S_qualitor_tickets_records t WITH (NOLOCK)
+      LEFT JOIN tbl_S_qualitor_tickets_categories c WITH (NOLOCK) ON c.id = t.idCategory
       
+      -- Actividad admin más reciente
       OUTER APPLY (
         SELECT TOP 1 author 
-        FROM tbl_S_qualitor_tickets_activities a 
+        FROM tbl_S_qualitor_tickets_activities a WITH (NOLOCK)
         WHERE a.idTicket = t.id AND a.authorRole IN ('Admin', 'System')
         ORDER BY a.created_at DESC
       ) act
-      
-      OUTER APPLY (
-        SELECT TOP 1 *
-        FROM FidelissaCRM.dbo.tbl_S_qualitor_user u
-        WHERE u.id = t.idUser OR u.id_old = t.idUser
-        ORDER BY (CASE WHEN u.id = t.idUser THEN 1 ELSE 2 END)
-      ) rep_u
-      
-      OUTER APPLY (
-        SELECT TOP 1 * FROM FidelissaCRM.dbo.tbl_S_qualitor_station s
-        WHERE s.id_old = rep_u.stationId OR s.id = rep_u.stationId
-        ORDER BY (CASE WHEN s.id_old = rep_u.stationId THEN 1 ELSE 2 END)
-      ) rep_station
-      
-      OUTER APPLY (
-        SELECT TOP 1 * FROM FidelissaCRM.dbo.tbl_S_qualitor_city ci
-        WHERE ci.id_old = rep_station.cityId OR ci.id = rep_station.cityId
-        ORDER BY (CASE WHEN ci.id_old = rep_station.cityId THEN 1 ELSE 2 END)
-      ) rep_city
-      
-      OUTER APPLY (
-        SELECT TOP 1 * FROM FidelissaCRM.dbo.tbl_S_qualitor_state st
-        WHERE st.id_old = rep_city.stateId OR st.id = rep_city.stateId
-        ORDER BY (CASE WHEN st.id_old = rep_city.stateId THEN 1 ELSE 2 END)
-      ) rep_state
-      
-      OUTER APPLY (
-        SELECT TOP 1 * FROM FidelissaCRM.dbo.tbl_S_qualitor_brand b
-        WHERE b.id_old = rep_station.brandId OR b.id = rep_station.brandId
-        ORDER BY (CASE WHEN b.id_old = rep_station.brandId THEN 1 ELSE 2 END)
-      ) rep_brand
-      
-      OUTER APPLY (
-        SELECT TOP 1 q.created_at
-        FROM FidelissaCRM.dbo.tbl_S_qualitor_code q
-        WHERE q.cod = t.codigo
-      ) sqc
-      
-      OUTER APPLY (
-        SELECT TOP 1 v.point, v.created_at, v.register_date, v.user_id_register
-        FROM FidelissaCRM.dbo.vw_qualitor_code v
-        WHERE v.cod = t.codigo
-      ) vqc
-      
-      OUTER APPLY (
-        SELECT TOP 1 * FROM FidelissaCRM.dbo.tbl_S_qualitor_user u
-        WHERE u.id_old = vqc.user_id_register OR u.id = vqc.user_id_register
-        ORDER BY (CASE WHEN u.id_old = vqc.user_id_register THEN 1 ELSE 2 END)
-      ) reg_u
-      
-      OUTER APPLY (
-        SELECT TOP 1 * FROM FidelissaCRM.dbo.tbl_S_qualitor_station s
-        WHERE s.id_old = reg_u.stationId OR s.id = reg_u.stationId
-        ORDER BY (CASE WHEN s.id_old = reg_u.stationId THEN 1 ELSE 2 END)
-      ) reg_station
-      
-      OUTER APPLY (
-        SELECT TOP 1 * FROM FidelissaCRM.dbo.tbl_S_qualitor_city ci
-        WHERE ci.id_old = reg_station.cityId OR ci.id = reg_station.cityId
-        ORDER BY (CASE WHEN ci.id_old = reg_station.cityId THEN 1 ELSE 2 END)
-      ) reg_city
-      
-      OUTER APPLY (
-        SELECT TOP 1 * FROM FidelissaCRM.dbo.tbl_S_qualitor_state st
-        WHERE st.id_old = reg_city.stateId OR st.id = reg_city.stateId
-        ORDER BY (CASE WHEN st.id_old = reg_city.stateId THEN 1 ELSE 2 END)
-      ) reg_state
-      
-      OUTER APPLY (
-        SELECT TOP 1 * FROM FidelissaCRM.dbo.tbl_S_qualitor_brand b
-        WHERE b.id_old = reg_station.brandId OR b.id = reg_station.brandId
-        ORDER BY (CASE WHEN b.id_old = reg_station.brandId THEN 1 ELSE 2 END)
-      ) reg_brand
-      
+
+      -- Usuario que reporta
+      LEFT JOIN FidelissaCRM.dbo.tbl_S_qualitor_user rep_u_id WITH (NOLOCK) ON rep_u_id.id = t.idUser
+      LEFT JOIN FidelissaCRM.dbo.tbl_S_qualitor_user rep_u_old WITH (NOLOCK) ON rep_u_old.id_old = t.idUser AND rep_u_id.id IS NULL
+
+      -- Estación del usuario que reporta
+      LEFT JOIN FidelissaCRM.dbo.tbl_S_qualitor_station rep_s_old WITH (NOLOCK) ON rep_s_old.id_old = COALESCE(rep_u_id.stationId, rep_u_old.stationId)
+      LEFT JOIN FidelissaCRM.dbo.tbl_S_qualitor_station rep_s_id WITH (NOLOCK) ON rep_s_id.id = COALESCE(rep_u_id.stationId, rep_u_old.stationId) AND rep_s_old.id IS NULL
+
+      -- Ciudad de la estación que reporta
+      LEFT JOIN FidelissaCRM.dbo.tbl_S_qualitor_city rep_ci_old WITH (NOLOCK) ON rep_ci_old.id_old = COALESCE(rep_s_old.cityId, rep_s_id.cityId)
+      LEFT JOIN FidelissaCRM.dbo.tbl_S_qualitor_city rep_ci_id WITH (NOLOCK) ON rep_ci_id.id = COALESCE(rep_s_old.cityId, rep_s_id.cityId) AND rep_ci_old.id IS NULL
+
+      -- Departamento de la ciudad que reporta
+      LEFT JOIN FidelissaCRM.dbo.tbl_S_qualitor_state rep_st_old WITH (NOLOCK) ON rep_st_old.id_old = COALESCE(rep_ci_old.stateId, rep_ci_id.stateId)
+      LEFT JOIN FidelissaCRM.dbo.tbl_S_qualitor_state rep_st_id WITH (NOLOCK) ON rep_st_id.id = COALESCE(rep_ci_old.stateId, rep_ci_id.stateId) AND rep_st_old.id IS NULL
+
+      -- Marca de la estación que reporta
+      LEFT JOIN FidelissaCRM.dbo.tbl_S_qualitor_brand rep_b_old WITH (NOLOCK) ON rep_b_old.id_old = COALESCE(rep_s_old.brandId, rep_s_id.brandId)
+      LEFT JOIN FidelissaCRM.dbo.tbl_S_qualitor_brand rep_b_id WITH (NOLOCK) ON rep_b_id.id = COALESCE(rep_s_old.brandId, rep_s_id.brandId) AND rep_b_old.id IS NULL
+
+      -- Código
+      LEFT JOIN FidelissaCRM.dbo.tbl_S_qualitor_code sqc WITH (NOLOCK) ON sqc.cod = t.codigo
+      LEFT JOIN FidelissaCRM.dbo.vw_qualitor_code vqc WITH (NOLOCK) ON vqc.cod = t.codigo
+
+      -- Usuario que registró el código
+      LEFT JOIN FidelissaCRM.dbo.tbl_S_qualitor_user reg_u_old WITH (NOLOCK) ON reg_u_old.id_old = vqc.user_id_register
+      LEFT JOIN FidelissaCRM.dbo.tbl_S_qualitor_user reg_u_id WITH (NOLOCK) ON reg_u_id.id = vqc.user_id_register AND reg_u_old.id IS NULL
+
+      -- Estación del usuario que registró
+      LEFT JOIN FidelissaCRM.dbo.tbl_S_qualitor_station reg_s_old WITH (NOLOCK) ON reg_s_old.id_old = COALESCE(reg_u_old.stationId, reg_u_id.stationId)
+      LEFT JOIN FidelissaCRM.dbo.tbl_S_qualitor_station reg_s_id WITH (NOLOCK) ON reg_s_id.id = COALESCE(reg_u_old.stationId, reg_u_id.stationId) AND reg_s_old.id IS NULL
+
+      -- Ciudad de la estación que registró
+      LEFT JOIN FidelissaCRM.dbo.tbl_S_qualitor_city reg_ci_old WITH (NOLOCK) ON reg_ci_old.id_old = COALESCE(reg_s_old.cityId, reg_s_id.cityId)
+      LEFT JOIN FidelissaCRM.dbo.tbl_S_qualitor_city reg_ci_id WITH (NOLOCK) ON reg_ci_id.id = COALESCE(reg_s_old.cityId, reg_s_id.cityId) AND reg_ci_old.id IS NULL
+
+      -- Departamento que registró
+      LEFT JOIN FidelissaCRM.dbo.tbl_S_qualitor_state reg_st_old WITH (NOLOCK) ON reg_st_old.id_old = COALESCE(reg_ci_old.stateId, reg_ci_id.stateId)
+      LEFT JOIN FidelissaCRM.dbo.tbl_S_qualitor_state reg_st_id WITH (NOLOCK) ON reg_st_id.id = COALESCE(reg_ci_old.stateId, reg_ci_id.stateId) AND reg_st_old.id IS NULL
+
+      -- Marca que registró
+      LEFT JOIN FidelissaCRM.dbo.tbl_S_qualitor_brand reg_b_old WITH (NOLOCK) ON reg_b_old.id_old = COALESCE(reg_s_old.brandId, reg_s_id.brandId)
+      LEFT JOIN FidelissaCRM.dbo.tbl_S_qualitor_brand reg_b_id WITH (NOLOCK) ON reg_b_id.id = COALESCE(reg_s_old.brandId, reg_s_id.brandId) AND reg_b_old.id IS NULL
+
       ${whereClause}
       ORDER BY t.id DESC
     `;
