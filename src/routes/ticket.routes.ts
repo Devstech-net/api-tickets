@@ -249,6 +249,26 @@ router.patch('/:id', async (req: Request, res: Response): Promise<void> => {
 });
 
 /**
+ * DELETE /api/tickets/:id
+ * Eliminar ticket (e.g. rollback si falla la evidencia o cancelación)
+ */
+router.delete('/:id', async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(paramAsString(req.params.id), 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: 'ID de ticket inválido' });
+    return;
+  }
+
+  try {
+    await ticketService.deleteTicket(id);
+    res.json({ message: 'Ticket eliminado correctamente' });
+  } catch (error: any) {
+    console.error('Error deleting ticket:', error);
+    res.status(500).json({ error: 'Error al eliminar ticket', message: error.message });
+  }
+});
+
+/**
  * POST /api/tickets/:id/comments
  */
 router.post('/:id/comments', async (req: Request, res: Response): Promise<void> => {

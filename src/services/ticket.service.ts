@@ -221,11 +221,24 @@ export const ticketService = {
       const dirExists = await sftp.exists(remoteDir);
       if (!dirExists) {
         await sftp.mkdir(remoteDir, true);
+        try {
+          await sftp.chmod(remoteDir, 0o777);
+        } catch (_) {}
       }
 
       await sftp.put(file.buffer, remotePath);
+      try {
+        await sftp.chmod(remotePath, 0o666);
+      } catch (_) {}
 
-      const fileUrl = `${env.URL_TICKETS.replace(/\/+$/, '')}${remotePath}`;
+      const baseUrl = env.URL_TICKETS.replace(/\/+$/, '');
+      const cleanRemotePath = remotePath.startsWith('/') ? remotePath : `/${remotePath}`;
+      let fileUrl: string;
+      if (baseUrl.endsWith('/uploads/tickets') && cleanRemotePath.startsWith('/uploads/tickets')) {
+        fileUrl = `${baseUrl}${cleanRemotePath.replace('/uploads/tickets', '')}`;
+      } else {
+        fileUrl = `${baseUrl}${cleanRemotePath}`;
+      }
 
       const pool = await poolPromise;
       await pool.request()
@@ -243,6 +256,18 @@ export const ticketService = {
     } finally {
       await sftp.end();
     }
+  },
+
+  deleteTicket: async (id: number): Promise<boolean> => {
+    const pool = await poolPromise;
+    await pool.request()
+      .input('id', mssql.Int, id)
+      .query(`
+        DELETE FROM tbl_S_qualitor_tickets_attachments WHERE idTicket = @id;
+        DELETE FROM tbl_S_qualitor_tickets_activities WHERE idTicket = @id;
+        DELETE FROM tbl_S_qualitor_tickets_records WHERE id = @id;
+      `);
+    return true;
   },
 
   updateStatus: async (id: number, status: TicketStatus, author: string, authorRole: TicketActivity['authorRole'] = 'Admin'): Promise<Ticket | null> => {
