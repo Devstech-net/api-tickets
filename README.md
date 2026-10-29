@@ -265,7 +265,8 @@ Retorna la lista completa de tickets estructurada según las 25 columnas del lay
       "depto_registro": "MAGDALENA",
       "marca_eds_registro": "TERPEL",
       "nombre_eds_registro": "ESTACION DE SERVICIO TERPEL GASXY TAYRONA",
-      "direccion_eds_registro": "CARRERA 14 No. 27 ESQUINA"
+      "direccion_eds_registro": "CARRERA 14 No. 27 ESQUINA",
+      "ruta_evidencia": "https://aditivosqualitor.com/tickets/uploads/tickets/50/1771191000000-evidencia.png"
     }
   ]
 }

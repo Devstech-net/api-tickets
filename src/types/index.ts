@@ -71,6 +71,7 @@ export interface TicketExportRow {
   marca_eds_registro: string | null;
   nombre_eds_registro: string | null;
   direccion_eds_registro: string | null;
+  ruta_evidencia: string | null;
 }
 
 export interface TicketStore {

@@ -512,7 +512,10 @@ export const ticketService = {
         COALESCE(reg_st_old.name, reg_st_id.name) as depto_registro,
         COALESCE(reg_b_old.name, reg_b_id.name) as marca_eds_registro,
         COALESCE(reg_s_old.name, reg_s_id.name) as nombre_eds_registro,
-        COALESCE(reg_s_old.address, reg_s_id.address) as direccion_eds_registro
+        COALESCE(reg_s_old.address, reg_s_id.address) as direccion_eds_registro,
+        
+        -- Evidencia del ticket
+        att.url as ruta_evidencia
         
       FROM tbl_S_qualitor_tickets_records t WITH (NOLOCK)
       LEFT JOIN tbl_S_qualitor_tickets_categories c WITH (NOLOCK) ON c.id = t.idCategory
@@ -524,6 +527,14 @@ export const ticketService = {
         WHERE a.idTicket = t.id AND a.authorRole IN ('Admin', 'System')
         ORDER BY a.created_at DESC
       ) act
+
+      -- Evidencia del ticket
+      OUTER APPLY (
+        SELECT TOP 1 url 
+        FROM tbl_S_qualitor_tickets_attachments att WITH (NOLOCK)
+        WHERE att.idTicket = t.id
+        ORDER BY att.id DESC
+      ) att
 
       -- Usuario que reporta
       LEFT JOIN FidelissaCRM.dbo.tbl_S_qualitor_user rep_u_id WITH (NOLOCK) ON rep_u_id.id = t.idUser
