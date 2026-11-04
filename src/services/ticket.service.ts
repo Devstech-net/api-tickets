@@ -375,14 +375,16 @@ export const ticketService = {
     return result.recordset[0] || null;
   },
 
-  getUserInfo: async (id: number | string, code?: string): Promise<any | null> => {
+  getUserInfo: async (id: number | string, code?: string, ticketId?: number): Promise<any | null> => {
     const pool = await poolPromise;
     const request = pool.request();
     const num = Number(id);
     const isNum = !isNaN(num) && num > 0;
     const str = String(id).trim();
+    const parsedTicketId = ticketId && !isNaN(Number(ticketId)) && Number(ticketId) > 0 ? Number(ticketId) : 0;
 
     request.input('str', mssql.NVarChar(50), str);
+    request.input('ticketId', mssql.Int, parsedTicketId);
     if (isNum) {
       request.input('id', mssql.Int, num);
     }
@@ -399,12 +401,14 @@ export const ticketService = {
       ? '(usr.id_old = @id OR usr.id = @id OR usr.personalId = @str)'
       : 'usr.personalId = @str';
 
-    // Priorización inteligente:
-    // Si num es 22289 o 23447, sabemos que son IDs primarios registrados por esos usuarios
+    // Priorización según el origen del ID:
+    // - Hasta el ticket 2412 (2026-09-17 20:20) se guardaba id_old (salvo 22289 y 23447).
+    // - Desde el ticket 2413 (commit 6b8696b) se guarda usr.id.
+    // - Cuando se consulta desde login/iframe (ticketId = 0), Qualitor PHP envía id_old.
     const orderCond = isNum
       ? `(CASE 
             WHEN usr.personalId = @str THEN 1 
-            WHEN usr.id = @id AND @id IN (22289, 23447) THEN 2
+            WHEN usr.id = @id AND (@id IN (22289, 23447) OR @ticketId >= 2413) THEN 2
             WHEN usr.id_old = @id THEN 3 
             WHEN usr.id = @id THEN 4 
             ELSE 5 
@@ -491,8 +495,8 @@ export const ticketService = {
         act.author as usuario_gestiona,
         
         -- Datos de quien reporta (creador del ticket)
-        COALESCE(rep_u_id.personalId, rep_u_old.personalId) as doc_reporta,
-        COALESCE(rep_u_id.fullname, rep_u_old.fullname) as user_reporta,
+        rep_u.personalId as doc_reporta,
+        rep_u.fullname as user_reporta,
         COALESCE(rep_ci_old.nombre, rep_ci_id.nombre) as ciudad_reporta,
         COALESCE(rep_st_old.name, rep_st_id.name) as depto_reporta,
         COALESCE(rep_b_old.name, rep_b_id.name) as marca_eds_reporta,
@@ -536,13 +540,28 @@ export const ticketService = {
         ORDER BY att.id DESC
       ) att
 
-      -- Usuario que reporta
+      -- Usuario que reporta (hasta el ticket 2412 se guardaba id_old salvo 22289/23447; desde 2413 se guarda id)
       LEFT JOIN FidelissaCRM.dbo.tbl_S_qualitor_user rep_u_id WITH (NOLOCK) ON rep_u_id.id = t.idUser
-      LEFT JOIN FidelissaCRM.dbo.tbl_S_qualitor_user rep_u_old WITH (NOLOCK) ON rep_u_old.id_old = t.idUser AND rep_u_id.id IS NULL
+      LEFT JOIN FidelissaCRM.dbo.tbl_S_qualitor_user rep_u_old WITH (NOLOCK) ON rep_u_old.id_old = t.idUser
+      CROSS APPLY (
+        SELECT
+          CASE
+            WHEN t.id <= 2412 AND t.idUser NOT IN (22289, 23447) THEN COALESCE(rep_u_old.personalId, rep_u_id.personalId)
+            ELSE COALESCE(rep_u_id.personalId, rep_u_old.personalId)
+          END AS personalId,
+          CASE
+            WHEN t.id <= 2412 AND t.idUser NOT IN (22289, 23447) THEN COALESCE(rep_u_old.fullname, rep_u_id.fullname)
+            ELSE COALESCE(rep_u_id.fullname, rep_u_old.fullname)
+          END AS fullname,
+          CASE
+            WHEN t.id <= 2412 AND t.idUser NOT IN (22289, 23447) THEN COALESCE(rep_u_old.stationId, rep_u_id.stationId)
+            ELSE COALESCE(rep_u_id.stationId, rep_u_old.stationId)
+          END AS stationId
+      ) rep_u
 
       -- Estación del usuario que reporta
-      LEFT JOIN FidelissaCRM.dbo.tbl_S_qualitor_station rep_s_old WITH (NOLOCK) ON rep_s_old.id_old = COALESCE(rep_u_id.stationId, rep_u_old.stationId)
-      LEFT JOIN FidelissaCRM.dbo.tbl_S_qualitor_station rep_s_id WITH (NOLOCK) ON rep_s_id.id = COALESCE(rep_u_id.stationId, rep_u_old.stationId) AND rep_s_old.id IS NULL
+      LEFT JOIN FidelissaCRM.dbo.tbl_S_qualitor_station rep_s_old WITH (NOLOCK) ON rep_s_old.id_old = rep_u.stationId
+      LEFT JOIN FidelissaCRM.dbo.tbl_S_qualitor_station rep_s_id WITH (NOLOCK) ON rep_s_id.id = rep_u.stationId AND rep_s_old.id IS NULL
 
       -- Ciudad de la estación que reporta
       LEFT JOIN FidelissaCRM.dbo.tbl_S_qualitor_city rep_ci_old WITH (NOLOCK) ON rep_ci_old.id_old = COALESCE(rep_s_old.cityId, rep_s_id.cityId)
